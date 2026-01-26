@@ -77,6 +77,45 @@
 履歴作成 → phone.callee_call_log_completed（終了直後）
 録音完了 → phone.recording_completed（処理完了後）
 
+### 4.1 通話履歴の作成タイミング（詳細）
+
+**結論: 通話履歴は通話終了後に作成される。通話中の取得は不可。**
+
+| 状態 | 履歴取得 | 備考 |
+|-----|---------|------|
+| 通話前 | ❌ 不可 | 履歴レコード未作成 |
+| 通話中 | ❌ 不可 | 履歴レコード未作成 |
+| 通話終了直後 | ✅ 可能 | Webhook発火後に取得可能 |
+
+```
+通話開始 → 履歴なし（取得不可）
+    ↓
+通話中 → 履歴なし（取得不可）
+    ↓
+通話終了 → phone.callee_ended イベント発火
+    ↓
+履歴作成 → phone.callee_call_log_completed イベント発火（終了直後）
+    ↓
+API取得可能 → GET /phone/call_history/{callLogId}
+```
+
+#### 注意: API取得時の404エラー問題
+
+Webhook `phone.callee_call_log_completed` 受信直後に詳細APIを呼び出すと、
+404 "Call Log does not exist" エラーが発生する場合がある（開発者フォーラムで複数報告あり）。
+
+**原因:** Zoomバックエンドでの非同期処理完了前にAPIを呼び出している
+
+**推奨リトライ戦略:**
+1. 初回: 即座に試行
+2. 失敗時: 1秒待機 → 再試行
+3. 継続失敗: 指数バックオフ（2s, 4s, 8s...）で最大5回
+4. 最終失敗: ログ出力 + アラート
+
+**参考情報:**
+- [Call History API Not Working](https://devforum.zoom.us/t/call-history-call-path-api-not-working-call-log-does-not-exist/108686)
+- [Get Call Path API 404 Error](https://devforum.zoom.us/t/get-call-path-returning-code-404-call-log-does-not-exist/100578)
+
 
 ## 5. POC実装検証結果 ✅ 完了
 
@@ -194,5 +233,6 @@ Zoom Phone では通話中の音声をリアルタイムに取得する公式な
 | リアルタイム文字起こし | ❌ 不可 | Live Transcription API は Phone 非対応 |
 | Webhook での音声/文字起こし取得 | ❌ 不可 | イベント通知のみ、データは含まれない |
 | 履歴記録タイミングの検知 | ✅ 可能 | Webhookで通話終了・履歴作成を検知 |
+| 通話中の履歴取得 | ❌ 不可 | 通話終了後にのみ作成・取得可能 |
 | POC実装（ユーザーレベルAPI） | ✅ 完了 | 履歴・録音一覧・ダウンロード全て成功 |
 | 録音後の文字起こしダウンロード | ⚠️ 条件付き | 管理者設定が必要、API で取得可能 |
