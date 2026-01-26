@@ -78,6 +78,70 @@
 録音完了 → phone.recording_completed（処理完了後）
 
 
+## 5. POC実装検証結果 ✅ 完了
+
+### 5.1 ユーザーレベルAPIエンドポイント
+
+Admin権限（:admin スコープ）が必要なエンドポイントではなく、ユーザーレベルのエンドポイントで検証を実施。
+
+| API | Admin エンドポイント | User エンドポイント | 検証結果 |
+|-----|---------------------|-------------------|---------|
+| 通話履歴 | GET /phone/call_history | GET /phone/users/me/call_logs | ✅ 成功 |
+| 録音一覧 | GET /phone/recordings | GET /phone/users/me/recordings | ✅ 成功 |
+| 録音ダウンロード | GET /phone/recording/download/{key} | 同左 | ✅ 成功 |
+
+### 5.2 必要なOAuthスコープ（ユーザーレベル）
+
+```
+phone:read:list_call_logs
+phone:read:call_log
+phone:read:list_recordings
+phone:read:call_recording
+```
+
+### 5.3 APIレスポンス構造の差異
+
+User-levelエンドポイントとAdmin-levelエンドポイントでレスポンス構造に差異がある。
+
+**通話履歴 (`/phone/users/me/call_logs`)**:
+| フィールド | Admin API | User API |
+|-----------|-----------|----------|
+| 終了時刻 | `end_date_time` | `call_end_time` |
+| 録音有無 | `has_recording` | `recording_id` + `recording_type` (録音ありの場合) |
+
+**録音一覧 (`/phone/users/me/recordings`)**:
+| フィールド | Admin API | User API |
+|-----------|-----------|----------|
+| 終了時刻 | `end_date_time` | `end_time` |
+| ファイルタイプ | `file_type` | 含まれない |
+| ファイルサイズ | `file_size` | 含まれない |
+
+### 5.4 録音ダウンロード検証結果（2026-01-26）
+
+| 項目 | 結果 |
+|-----|------|
+| 手動録音（OnDemand） | ✅ 取得・ダウンロード成功 |
+| ファイル形式 | audio/mpeg (MP3) |
+| 録音品質 | 128 kbps, 16 kHz, Monaural |
+| ファイルサイズ | 約226 KB (14秒の録音) |
+
+### 5.5 Zoom Phone録音設定
+
+録音機能を使用するには、以下の設定が必要：
+
+1. **自動録音の有効化**
+   - Admin Portal > Phone System Management > Users & Rooms > Policy
+   - 「Automatic Call Recording」を有効化
+
+2. **録音アクセス権限の付与**
+   - Policy > Automatic Call Recording > Access Member List
+   - ユーザーを追加し「Download」権限を付与
+
+3. **手動録音の場合**
+   - 通話中に録音ボタンを押して開始
+   - 録音タイプは `OnDemand` として記録される
+
+
 ## まとめ表
 
 | 要件 | 対応状況 | 備考 |
@@ -86,5 +150,6 @@
 | 音声データの取得 | ✅ 可能 | 録音ファイルのダウンロード（通話終了後） |
 | リアルタイム音声ストリーミング | ❌ 不可 | Zoom Phone非対応（RTMS はMeetings/Video SDK専用） |
 | 履歴記録タイミングの検知 | ✅ 可能 | Webhookで通話終了・履歴作成を検知 |
+| POC実装（ユーザーレベルAPI） | ✅ 完了 | 履歴・録音一覧・ダウンロード全て成功 |
 
 ご不明な点や追加の調査が必要な場合はお知らせください。
