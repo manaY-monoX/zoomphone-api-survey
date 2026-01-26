@@ -236,3 +236,32 @@ Zoom Phone では通話中の音声をリアルタイムに取得する公式な
 | 通話中の履歴取得 | ❌ 不可 | 通話終了後にのみ作成・取得可能 |
 | POC実装（ユーザーレベルAPI） | ✅ 完了 | 履歴・録音一覧・ダウンロード全て成功 |
 | 録音後の文字起こしダウンロード | ⚠️ 条件付き | 管理者設定が必要、API で取得可能 |
+
+
+## 参考資料
+
+### Zoom公式ドキュメント
+
+- [Understand Zoom Phone call history](https://developers.zoom.us/docs/phone/understanding-call-history/) - 通話履歴APIの概要
+- [Understand Zoom Phone call logs](https://developers.zoom.us/docs/phone/understanding-call-logs/) - 通話ログAPIの概要（非推奨情報含む）
+- [Zoom Phone API Reference](https://developers.zoom.us/docs/api/rest/reference/phone/) - APIリファレンス
+- [Zoom OAuth Scopes](https://developers.zoom.us/docs/integrations/oauth/) - OAuth認証とスコープ
+
+### Zoom Developer Forum
+
+- [Call Recordings with the Phone API](https://devforum.zoom.us/t/call-recordings-with-the-phone-api/96848) - 録音API使用例
+- [Accessing Zoom call stream in real-time](https://devforum.zoom.us/t/accessing-zoom-call-stream-in-real-time/41153) - リアルタイムストリーミングの制約
+- [Call History API Not Working](https://devforum.zoom.us/t/call-history-call-path-api-not-working-call-log-does-not-exist/108686) - 404エラー問題
+
+### その他
+
+- [7 APIs to get Zoom transcripts](https://www.recall.ai/blog/7-apis-to-get-zoom-transcripts-a-comprehensive-guide) - 録音取得タイミングの解説
+
+
+## 変更履歴
+
+| 日付 | 変更内容 |
+|------|---------|
+| 2026-01-26 | POC実装検証結果追加、リアルタイム機能調査追加、参考資料セクション追加 |
+| 2026-01-26 | 通話履歴作成タイミングの詳細調査結果追加 |
+| 2026-01-25 | 初版作成 |

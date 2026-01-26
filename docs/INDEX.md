@@ -19,7 +19,8 @@ docs/
 ├── specs/            # 仕様書・要件定義
 │   └── require.md    # Zoom Phone API POC 要件定義書
 └── survey/           # 調査ドキュメント
-    └── zoom-apis.md  # Zoom API調査結果
+    ├── zoom-apis.md        # Zoom API調査結果（技術調査）
+    └── zoom-api-design.md  # Zoom API設計判断・アーキテクチャ
 
 .kiro/
 └── specs/            # Kiro仕様ドキュメント
@@ -58,6 +59,20 @@ docs/
   - 制約事項と既知の課題
   - 検証計画と成功基準
   - 参考資料一覧
+
+### 調査ドキュメント（survey/）
+
+- **[zoom-apis.md](./survey/zoom-apis.md)** - Zoom Phone API 技術調査結果
+  - 電話履歴の取得方法
+  - 音声データ（録音）の取得方法
+  - リアルタイム音声ストリーミングの調査結果
+  - POC実装検証結果
+  - Webhookイベント一覧
+
+- **[zoom-api-design.md](./survey/zoom-api-design.md)** - Zoom Phone API 設計判断・アーキテクチャ
+  - アーキテクチャパターン評価（Layered Architecture採用理由）
+  - 設計決定（API選択、技術スタック、HTTPクライアント等）
+  - リスク分析と対策
 
 ### Kiro仕様ドキュメント（.kiro/specs/zoom-phone-api-poc/）
 
