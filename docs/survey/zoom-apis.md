@@ -142,14 +142,57 @@ User-levelエンドポイントとAdmin-levelエンドポイントでレスポ�
    - 録音タイプは `OnDemand` として記録される
 
 
+## 6. リアルタイム機能調査（2026-01-26 追加調査）
+
+### 6.1 リアルタイム音声ストリーミング ❌ 不可
+
+Zoom Phone では通話中の音声をリアルタイムに取得する公式な方法は存在しない。
+
+| 方法 | 対応状況 | 備考 |
+|-----|---------|------|
+| RTMS (Realtime Media Streams) | ❌ 非対応 | Meetings/Video SDK 専用 |
+| RTMP ストリーミング | ❌ 非対応 | Meetings/Webinar 専用 |
+| Video SDK | ❌ 非対応 | Phone との統合なし |
+| SIP トランキング | ❌ 不可 | 音声キャプチャ機能なし |
+| サードパーティ (Recall.ai等) | ❌ 非対応 | Meeting Bot 方式、Phone 非対応 |
+
+### 6.2 リアルタイム文字起こし ❌ 不可
+
+- Live Transcription API は Zoom Phone 非対応
+- Zoom Phone UI では Live Transcription 機能があるが、API として公開されていない
+- Zoom Contact Center でも同様の制限あり
+
+### 6.3 Webhook でのリアルタイム実現 ⚠️ 部分的
+
+**利用可能なイベント:**
+- `phone.callee_ringing` - 着信開始通知
+- `phone.callee_answered` - 通話開始通知
+- `phone.callee_ended` - 通話終了通知
+- `phone.recording_completed` - 録音完了通知
+- `phone.recording_transcript_completed` - 文字起こし完了通知
+
+**制限:**
+- Webhook は「イベント通知」のみで、音声データ・文字起こしテキストは含まれない
+- 実際のデータ取得には REST API 呼び出しが必要
+
+### 6.4 実現可能な代替案（準リアルタイム）
+
+真の「リアルタイム」は実現不可。通話終了後に録音をダウンロードし、外部STTサービス（Whisper、Google Speech-to-Text等）で文字起こしを行う方式のみ可能。
+
+**推定遅延:**
+- 最短: 30秒〜数分（録音処理完了後）
+- 最長: 最大24時間（Zoom側の処理状況による）
+
+
 ## まとめ表
 
 | 要件 | 対応状況 | 備考 |
 |------|---------|------|
 | 電話履歴の取得 | ✅ 可能 | REST API で取得 |
 | 音声データの取得 | ✅ 可能 | 録音ファイルのダウンロード（通話終了後） |
-| リアルタイム音声ストリーミング | ❌ 不可 | Zoom Phone非対応（RTMS はMeetings/Video SDK専用） |
+| リアルタイム音声ストリーミング | ❌ 不可 | Zoom Phone 非対応（RTMS は Meetings/Video SDK 専用） |
+| リアルタイム文字起こし | ❌ 不可 | Live Transcription API は Phone 非対応 |
+| Webhook での音声/文字起こし取得 | ❌ 不可 | イベント通知のみ、データは含まれない |
 | 履歴記録タイミングの検知 | ✅ 可能 | Webhookで通話終了・履歴作成を検知 |
 | POC実装（ユーザーレベルAPI） | ✅ 完了 | 履歴・録音一覧・ダウンロード全て成功 |
-
-ご不明な点や追加の調査が必要な場合はお知らせください。
+| 録音後の文字起こしダウンロード | ⚠️ 条件付き | 管理者設定が必要、API で取得可能 |
