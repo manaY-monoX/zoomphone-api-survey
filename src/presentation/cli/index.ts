@@ -129,8 +129,11 @@ async function handleHistory(): Promise<void> {
   const oauthService = new OAuthService();
   await oauthService.loadToken();
 
-  if (!oauthService.isAuthenticated()) {
-    console.error('Not authenticated. Run "npm run cli -- auth" first.');
+  // Try to get access token (will auto-refresh if expired)
+  const tokenResult = await oauthService.getAccessToken();
+  if (!tokenResult.success) {
+    console.error('Not authenticated or token refresh failed:', tokenResult.error.message);
+    console.error('Run "npm run cli -- auth" first.');
     process.exit(1);
   }
 
@@ -189,8 +192,11 @@ async function handleRecordings(_userId?: string): Promise<void> {
   const oauthService = new OAuthService();
   await oauthService.loadToken();
 
-  if (!oauthService.isAuthenticated()) {
-    console.error('Not authenticated. Run "npm run cli -- auth" first.');
+  // Try to get access token (will auto-refresh if expired)
+  const tokenResult = await oauthService.getAccessToken();
+  if (!tokenResult.success) {
+    console.error('Not authenticated or token refresh failed:', tokenResult.error.message);
+    console.error('Run "npm run cli -- auth" first.');
     process.exit(1);
   }
 
@@ -217,9 +223,16 @@ async function handleRecordings(_userId?: string): Promise<void> {
     console.log(`  Call Log ID: ${recording.callLogId}`);
     console.log(`  From: ${recording.callerNumber} → To: ${recording.calleeNumber}`);
     console.log(`  Duration: ${recording.duration}s`);
-    console.log(`  Time: ${recording.startTime} - ${recording.endTime}`);
-    console.log(`  File Type: ${recording.fileType}`);
-    console.log(`  File Size: ${(recording.fileSize / 1024).toFixed(2)} KB`);
+    console.log(`  Time: ${recording.startTime} - ${recording.endTime || 'N/A'}`);
+    if (recording.recordingType) {
+      console.log(`  Recording Type: ${recording.recordingType}`);
+    }
+    if (recording.fileType) {
+      console.log(`  File Type: ${recording.fileType}`);
+    }
+    if (recording.fileSize) {
+      console.log(`  File Size: ${(recording.fileSize / 1024).toFixed(2)} KB`);
+    }
     console.log(`  Download URL: ${recording.downloadUrl}`);
     console.log('─'.repeat(100));
   }
@@ -234,8 +247,11 @@ async function handleDownload(downloadUrl: string): Promise<void> {
   const oauthService = new OAuthService();
   await oauthService.loadToken();
 
-  if (!oauthService.isAuthenticated()) {
-    console.error('Not authenticated. Run "npm run cli -- auth" first.');
+  // Try to get access token (will auto-refresh if expired)
+  const tokenResult = await oauthService.getAccessToken();
+  if (!tokenResult.success) {
+    console.error('Not authenticated or token refresh failed:', tokenResult.error.message);
+    console.error('Run "npm run cli -- auth" first.');
     process.exit(1);
   }
 

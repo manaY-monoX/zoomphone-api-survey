@@ -10,6 +10,7 @@ export interface RecordingListResponse {
 
 /**
  * Recording entry
+ * Note: fileType and fileSize may not be available from user-level endpoint
  */
 export interface Recording {
   id: string;
@@ -20,8 +21,9 @@ export interface Recording {
   endTime: string;
   duration: number;
   downloadUrl: string;
-  fileType: string;
-  fileSize: number;
+  fileType?: string;       // May not be present in user-level endpoint
+  fileSize?: number;       // May not be present in user-level endpoint
+  recordingType?: string;  // 'OnDemand' | 'Automatic'
 }
 
 /**

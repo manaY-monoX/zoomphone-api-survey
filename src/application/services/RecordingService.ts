@@ -23,6 +23,7 @@ interface ZoomRecordingListResponse {
 
 /**
  * Zoom API recording entry
+ * Note: User-level endpoint returns different field names than documented
  */
 interface ZoomRecording {
   id: string;
@@ -30,11 +31,13 @@ interface ZoomRecording {
   caller_number: string;
   callee_number: string;
   date_time: string;
-  end_date_time: string;
+  end_date_time?: string;   // Admin endpoint
+  end_time?: string;        // User endpoint
   duration: number;
   download_url: string;
-  file_type: string;
-  file_size: number;
+  file_type?: string;       // Not always present in user endpoint
+  file_size?: number;       // Not always present in user endpoint
+  recording_type?: string;  // 'OnDemand' | 'Automatic'
 }
 
 /**
@@ -213,19 +216,24 @@ export class RecordingService implements IRecordingService {
 
   /**
    * Map Zoom recording to internal format
+   * Handles differences between admin and user-level endpoint responses
    */
   private mapRecording(zoom: ZoomRecording): Recording {
+    // User endpoint uses 'end_time', admin uses 'end_date_time'
+    const endTime = zoom.end_time || zoom.end_date_time || '';
+
     return {
       id: zoom.id,
       callLogId: zoom.call_log_id,
       callerNumber: zoom.caller_number,
       calleeNumber: zoom.callee_number,
       startTime: zoom.date_time,
-      endTime: zoom.end_date_time,
+      endTime,
       duration: zoom.duration,
       downloadUrl: zoom.download_url,
       fileType: zoom.file_type,
       fileSize: zoom.file_size,
+      recordingType: zoom.recording_type,
     };
   }
 }

@@ -26,6 +26,7 @@ interface ZoomCallHistoryResponse {
 
 /**
  * Zoom API call log entry
+ * Note: User-level endpoint returns different field names than documented
  */
 interface ZoomCallLog {
   id: string;
@@ -35,9 +36,12 @@ interface ZoomCallLog {
   direction: 'inbound' | 'outbound';
   duration: number;
   date_time: string;
-  end_date_time: string;
+  end_date_time?: string;      // Admin endpoint
+  call_end_time?: string;      // User endpoint
   result: string;
-  has_recording: boolean;
+  has_recording?: boolean;     // Present when false
+  recording_id?: string;       // Present when recording exists
+  recording_type?: string;     // 'OnDemand' | 'Automatic'
 }
 
 /**
@@ -238,8 +242,15 @@ export class CallHistoryService implements ICallHistoryService {
 
   /**
    * Map Zoom call log to internal format
+   * Handles differences between admin and user-level endpoint responses
    */
   private mapCallLog(zoom: ZoomCallLog): CallLog {
+    // User endpoint uses 'call_end_time', admin uses 'end_date_time'
+    const endTime = zoom.call_end_time || zoom.end_date_time || '';
+
+    // User endpoint omits 'has_recording' when recording exists, but includes 'recording_id'
+    const hasRecording = zoom.has_recording ?? !!zoom.recording_id;
+
     return {
       id: zoom.id,
       callId: zoom.call_id,
@@ -248,9 +259,9 @@ export class CallHistoryService implements ICallHistoryService {
       direction: zoom.direction,
       duration: zoom.duration,
       startTime: zoom.date_time,
-      endTime: zoom.end_date_time,
+      endTime,
       result: zoom.result,
-      hasRecording: zoom.has_recording,
+      hasRecording,
     };
   }
 
