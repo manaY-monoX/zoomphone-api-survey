@@ -124,6 +124,50 @@
   - 最小権限の原則に従い、必要なスコープのみを要求
   - スコープ不足時は403エラーが返る
 
+### 6. ユーザーレベル vs 管理者レベルAPI（2026-01-26 追記）
+
+- **Context**: admin-levelスコープで403エラーが発生し、代替手段を調査
+- **Sources Consulted**:
+  - Zoom Phone API Reference（User-managed endpoints）
+  - 実際のAPI動作検証
+- **Findings**:
+  - **Admin-level API（403エラー）**:
+    - `GET /phone/call_history` - `phone:read:list_call_logs:admin` スコープが必要
+    - `GET /phone/recordings` - `phone:read:list_recordings:admin` スコープが必要
+    - これらのスコープは管理者権限を持つアプリのみが要求可能
+  - **User-level API（成功）**:
+    - `GET /phone/users/me/call_logs` - `phone:read:list_call_logs` スコープで動作
+    - `GET /phone/users/me/recordings` - `phone:read:list_recordings` スコープで動作
+    - 認証ユーザー自身のデータのみ取得可能
+  - **スコープの違い**:
+    - `:admin` サフィックスあり = アカウント全体のデータにアクセス
+    - `:admin` サフィックスなし = 認証ユーザー自身のデータのみ
+- **Implications**:
+  - 3-legged OAuthでは、ユーザーレベルエンドポイントを使用
+  - admin-levelエンドポイントはServer-to-Server OAuth（アカウント管理者承認済み）で使用
+  - POCでは3-legged OAuthを使用するため、user-levelエンドポイントを採用
+
+### 7. 録音取得API検証結果（2026-01-26 追記）
+
+- **Context**: 録音取得APIの動作を実際に検証
+- **Findings**:
+  - **エンドポイント**: `GET /phone/users/me/recordings`
+  - **レスポンス構造**:
+    ```json
+    {
+      "next_page_token": "",
+      "page_size": 30,
+      "total_records": 0,
+      "from": "2025-12-26",
+      "to": "2026-01-26"
+    }
+    ```
+  - 録音が0件の場合、`recordings`配列自体がレスポンスに含まれない
+  - デフォルトで過去30日間のデータを返却
+- **Implications**:
+  - レスポンスの`recordings`配列が存在しない場合に対応するハンドリングが必要
+  - 録音機能が有効な状態で通話しないと、録音データは取得できない
+
 ---
 
 ## Architecture Pattern Evaluation
@@ -261,3 +305,4 @@
 | バージョン | 日付 | 変更内容 | 作成者 |
 |-----------|------|---------|--------|
 | 1.0 | 2025-01-26 | 初版作成 | - |
+| 1.1 | 2026-01-26 | ユーザーレベルAPI検証結果追加、録音API検証結果追加 | - |
