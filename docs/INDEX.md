@@ -14,8 +14,20 @@ docs/
 ├── INDEX.md          # 本索引ファイル
 ├── dev/              # 開発関連ドキュメント
 │   └── branch.md     # ブランチ戦略とCI/CDワークフロー
-└── specs/            # 仕様書・要件定義
-    └── require.md    # Zoom Phone API POC 要件定義書
+├── setup/            # セットアップ・環境構築ガイド
+│   └── zoom-account-setup.md  # Zoomアカウント環境設定ガイド
+├── specs/            # 仕様書・要件定義
+│   └── require.md    # Zoom Phone API POC 要件定義書
+└── survey/           # 調査ドキュメント
+    └── zoom-apis.md  # Zoom API調査結果
+
+.kiro/
+└── specs/            # Kiro仕様ドキュメント
+    └── zoom-phone-api-poc/
+        ├── spec.json       # 仕様メタデータ
+        ├── requirements.md # 要件定義書
+        ├── design.md       # 技術設計書
+        └── research.md     # 調査ログ
 ```
 
 ## ドキュメント一覧
@@ -28,6 +40,15 @@ docs/
   - コミットメッセージ規約
   - 運用フロー例とトラブルシューティング
 
+### セットアップ・環境構築（setup/）
+
+- **[zoom-account-setup.md](./setup/zoom-account-setup.md)** - Zoomアカウント環境設定ガイド
+  - Zoom Marketplaceでのアプリ作成手順
+  - OAuth認証とスコープ設定
+  - Webhook設定（オプション）
+  - `.env`ファイルの設定方法
+  - 動作確認とトラブルシューティング
+
 ### 仕様書・要件定義（specs/）
 
 - **[require.md](./specs/require.md)** - Zoom Phone API POC 要件定義書
@@ -38,6 +59,29 @@ docs/
   - 検証計画と成功基準
   - 参考資料一覧
 
+### Kiro仕様ドキュメント（.kiro/specs/zoom-phone-api-poc/）
+
+- **[spec.json](../.kiro/specs/zoom-phone-api-poc/spec.json)** - 仕様メタデータ
+  - フェーズ管理（requirements, design, tasks）
+  - 承認状況の追跡
+
+- **[requirements.md](../.kiro/specs/zoom-phone-api-poc/requirements.md)** - 要件定義書
+  - docs/specs/require.md のコピー
+
+- **[design.md](../.kiro/specs/zoom-phone-api-poc/design.md)** - 技術設計書
+  - アーキテクチャ設計（Layered Architecture）
+  - システムフロー（OAuth認証、通話履歴取得、録音取得、Webhook処理）
+  - コンポーネント設計とインターフェース定義
+  - データモデル
+  - エラーハンドリング戦略
+  - テスト戦略
+
+- **[research.md](../.kiro/specs/zoom-phone-api-poc/research.md)** - 調査ログ
+  - API調査結果（通話履歴、録音、リアルタイムストリーミング）
+  - アーキテクチャパターン評価
+  - 設計決定の根拠
+  - リスクと対策
+
 ## 更新手順（PDCA）
 1. PLAN: 既存の配置と命名を本索引で確認し、追加箇所を決める。
 2. DO: 対応するサブディレクトリに Markdown を作成・更新し、本索引へ追記。
@@ -46,4 +90,4 @@ docs/
 
 ---
 
-最終更新日: 2025-01-23
+最終更新日: 2026-01-26

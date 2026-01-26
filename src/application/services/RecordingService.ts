@@ -1,0 +1,226 @@
+import {
+  Result,
+  ApiError,
+  RecordingListResponse,
+  Recording,
+  DownloadResult,
+  IRecordingService,
+  ok,
+  err,
+} from '../types/index';
+import { HttpClient, IHttpClient } from '../../infrastructure/http/HttpClient';
+import { FileStorage, IFileStorage } from '../../infrastructure/storage/FileStorage';
+import { OAuthService } from './OAuthService';
+import { logger } from '../../infrastructure/logging/Logger';
+
+/**
+ * Zoom API response for recordings list
+ */
+interface ZoomRecordingListResponse {
+  recordings: ZoomRecording[];
+  next_page_token?: string;
+}
+
+/**
+ * Zoom API recording entry
+ */
+interface ZoomRecording {
+  id: string;
+  call_log_id: string;
+  caller_number: string;
+  callee_number: string;
+  date_time: string;
+  end_date_time: string;
+  duration: number;
+  download_url: string;
+  file_type: string;
+  file_size: number;
+}
+
+/**
+ * Recording service implementation
+ */
+export class RecordingService implements IRecordingService {
+  private readonly httpClient: HttpClient;
+  private readonly fileStorage: IFileStorage;
+  private readonly oauthService: OAuthService;
+
+  constructor(
+    httpClient?: IHttpClient,
+    fileStorage?: IFileStorage,
+    oauthService?: OAuthService
+  ) {
+    this.httpClient = (httpClient || new HttpClient()) as HttpClient;
+    this.fileStorage = fileStorage || new FileStorage();
+    this.oauthService = oauthService || new OAuthService();
+  }
+
+  /**
+   * Get recordings list
+   */
+  async getRecordings(userId: string): Promise<Result<RecordingListResponse, ApiError>> {
+    logger.info('Fetching recordings', { userId });
+
+    // Get access token
+    const tokenResult = await this.oauthService.getAccessToken();
+    if (!tokenResult.success) {
+      return err({
+        type: 'AUTH_ERROR',
+        message: tokenResult.error.message,
+      });
+    }
+
+    this.httpClient.setAuthToken(tokenResult.data);
+
+    const queryParams = new URLSearchParams({ user_id: userId });
+    const url = `/phone/recordings?${queryParams.toString()}`;
+
+    const result = await this.httpClient.get<ZoomRecordingListResponse>(url);
+
+    if (!result.success) {
+      return result;
+    }
+
+    const response: RecordingListResponse = {
+      recordings: result.data.recordings.map(this.mapRecording),
+      nextPageToken: result.data.next_page_token,
+    };
+
+    logger.info('Recordings fetched successfully', {
+      count: response.recordings.length,
+      hasNextPage: !!response.nextPageToken,
+    });
+
+    return ok(response);
+  }
+
+  /**
+   * Extract download_url_key from download URL
+   */
+  extractDownloadKey(downloadUrl: string): string {
+    try {
+      const url = new URL(downloadUrl);
+      const pathParts = url.pathname.split('/');
+      const key = pathParts[pathParts.length - 1];
+
+      if (!key) {
+        throw new Error('No download key found in URL');
+      }
+
+      // Decode if URL-encoded
+      return decodeURIComponent(key);
+    } catch (error) {
+      logger.error('Failed to extract download key', error as Error, { downloadUrl });
+      throw new Error(`Invalid download URL: ${downloadUrl}`);
+    }
+  }
+
+  /**
+   * Download recording file
+   */
+  async downloadRecording(
+    downloadUrl: string,
+    outputPath: string
+  ): Promise<Result<DownloadResult, ApiError>> {
+    logger.info('Downloading recording', { downloadUrl, outputPath });
+
+    // Get access token
+    const tokenResult = await this.oauthService.getAccessToken();
+    if (!tokenResult.success) {
+      return err({
+        type: 'AUTH_ERROR',
+        message: tokenResult.error.message,
+      });
+    }
+
+    try {
+      // Extract download key from URL
+      const downloadKey = this.extractDownloadKey(downloadUrl);
+
+      // Set auth token
+      this.httpClient.setAuthToken(tokenResult.data);
+
+      // Download file using streaming
+      const response = await this.httpClient.getRawClient().get(
+        `/phone/recording/download/${downloadKey}`,
+        {
+          responseType: 'arraybuffer',
+          timeout: 300000, // 5 minutes for large files
+        }
+      );
+
+      const buffer = Buffer.from(response.data);
+      const mimeType = response.headers['content-type'] || 'audio/mpeg';
+
+      // Save to file
+      const filePath = await this.fileStorage.save(outputPath, buffer);
+
+      const result: DownloadResult = {
+        filePath,
+        fileSize: buffer.length,
+        mimeType,
+      };
+
+      logger.info('Recording downloaded successfully', {
+        filePath,
+        fileSize: result.fileSize,
+        mimeType: result.mimeType,
+      });
+
+      return ok(result);
+    } catch (error) {
+      const axiosError = error as { response?: { status?: number; data?: { message?: string } }; message?: string };
+
+      if (axiosError.response) {
+        const status = axiosError.response.status;
+        const message = axiosError.response.data?.message || axiosError.message || 'Unknown error';
+
+        if (status === 404) {
+          return err({
+            type: 'NOT_FOUND',
+            message: `Recording not found: ${message}`,
+            resourceType: 'Recording',
+            resourceId: downloadUrl,
+          });
+        }
+
+        return err({
+          type: 'SERVER_ERROR',
+          message: `Download failed: ${message}`,
+          statusCode: status || 500,
+        });
+      }
+
+      return err({
+        type: 'NETWORK_ERROR',
+        message: `Network error during download: ${axiosError.message}`,
+        cause: error as Error,
+      });
+    }
+  }
+
+  /**
+   * Map Zoom recording to internal format
+   */
+  private mapRecording(zoom: ZoomRecording): Recording {
+    return {
+      id: zoom.id,
+      callLogId: zoom.call_log_id,
+      callerNumber: zoom.caller_number,
+      calleeNumber: zoom.callee_number,
+      startTime: zoom.date_time,
+      endTime: zoom.end_date_time,
+      duration: zoom.duration,
+      downloadUrl: zoom.download_url,
+      fileType: zoom.file_type,
+      fileSize: zoom.file_size,
+    };
+  }
+}
+
+/**
+ * Default recording service instance
+ */
+export const recordingService = new RecordingService();
+
+export default recordingService;
