@@ -83,8 +83,18 @@ export class RecordingService implements IRecordingService {
       return result;
     }
 
+    // Debug: Log raw response structure for user-level endpoint
+    logger.debug('Raw recordings API response', { data: result.data });
+
+    // User-level endpoint may return different structure
+    // Handle both 'recordings' (admin) and potential variations
+    const recordings = result.data.recordings ||
+      (result.data as unknown as { recording_list?: ZoomRecording[] }).recording_list ||
+      (result.data as unknown as { call_recordings?: ZoomRecording[] }).call_recordings ||
+      [];
+
     const response: RecordingListResponse = {
-      recordings: result.data.recordings.map(this.mapRecording),
+      recordings: recordings.map(this.mapRecording),
       nextPageToken: result.data.next_page_token,
     };
 
