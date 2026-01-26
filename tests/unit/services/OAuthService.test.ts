@@ -73,8 +73,11 @@ describe('OAuthService', () => {
     it('should include required scopes', () => {
       const url = oauthService.getAuthorizationUrl('state');
 
-      expect(url).toContain('phone%3Aread%3Alist_call_logs%3Aadmin');
-      expect(url).toContain('phone%3Aread%3Acall_log%3Aadmin');
+      // User-level scopes (without :admin suffix)
+      expect(url).toContain('phone%3Aread%3Alist_call_logs');
+      expect(url).toContain('phone%3Aread%3Acall_log');
+      expect(url).toContain('phone%3Aread%3Alist_recordings');
+      expect(url).toContain('phone%3Aread%3Acall_recording');
     });
   });
 

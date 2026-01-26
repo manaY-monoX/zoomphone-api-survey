@@ -57,9 +57,11 @@ export class RecordingService implements IRecordingService {
 
   /**
    * Get recordings list
+   * Uses user-level endpoint (/phone/users/me/recordings) for user-scoped access
+   * Admin-level endpoint (/phone/recordings) requires :admin scopes
    */
-  async getRecordings(userId: string): Promise<Result<RecordingListResponse, ApiError>> {
-    logger.info('Fetching recordings', { userId });
+  async getRecordings(_userId?: string): Promise<Result<RecordingListResponse, ApiError>> {
+    logger.info('Fetching recordings (user-level endpoint)');
 
     // Get access token
     const tokenResult = await this.oauthService.getAccessToken();
@@ -72,8 +74,8 @@ export class RecordingService implements IRecordingService {
 
     this.httpClient.setAuthToken(tokenResult.data);
 
-    const queryParams = new URLSearchParams({ user_id: userId });
-    const url = `/phone/recordings?${queryParams.toString()}`;
+    // Use user-level endpoint for user-scoped access
+    const url = `/phone/users/me/recordings`;
 
     const result = await this.httpClient.get<ZoomRecordingListResponse>(url);
 

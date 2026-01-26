@@ -30,7 +30,7 @@ Usage: npm run cli -- <command> [options]
 Commands:
   auth                  Start OAuth authentication flow
   history               Fetch call history
-  recordings            List recordings (requires user email)
+  recordings            List recordings for authenticated user
   download <url>        Download a recording
   webhook               Start webhook server
   help                  Show this help message
@@ -38,7 +38,7 @@ Commands:
 Examples:
   npm run cli -- auth
   npm run cli -- history
-  npm run cli -- recordings user@example.com
+  npm run cli -- recordings
   npm run cli -- download "https://zoom.us/..."
   npm run cli -- webhook
 `);
@@ -181,9 +181,10 @@ async function handleHistory(): Promise<void> {
 
 /**
  * Handle recordings command
+ * Note: userId is optional as user-level endpoint fetches recordings for authenticated user
  */
-async function handleRecordings(userId: string): Promise<void> {
-  console.log(`Fetching recordings for user: ${userId}...\n`);
+async function handleRecordings(_userId?: string): Promise<void> {
+  console.log('Fetching recordings for authenticated user...\n');
 
   const oauthService = new OAuthService();
   await oauthService.loadToken();
@@ -194,7 +195,7 @@ async function handleRecordings(userId: string): Promise<void> {
   }
 
   const recordingService = new RecordingService(undefined, undefined, oauthService);
-  const result = await recordingService.getRecordings(userId);
+  const result = await recordingService.getRecordings();
 
   if (!result.success) {
     console.error('Failed to fetch recordings:', result.error.message);
@@ -331,13 +332,8 @@ async function main(): Promise<void> {
       break;
 
     case COMMANDS.RECORDINGS:
-      const userId = args[1];
-      if (!userId) {
-        console.error('Error: User ID (email) is required.');
-        console.log('Usage: npm run cli -- recordings <user@example.com>');
-        process.exit(1);
-      }
-      await handleRecordings(userId);
+      // userId is optional for user-level endpoint
+      await handleRecordings();
       break;
 
     case COMMANDS.DOWNLOAD:
