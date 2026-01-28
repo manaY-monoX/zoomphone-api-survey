@@ -15,12 +15,18 @@ docs/
 ├── dev/              # 開発関連ドキュメント
 │   └── branch.md     # ブランチ戦略とCI/CDワークフロー
 ├── setup/            # セットアップ・環境構築ガイド
-│   └── zoom-account-setup.md  # Zoomアカウント環境設定ガイド
+│   ├── zoom-account-setup.md  # Zoomアカウント環境設定ガイド（OAuth User-managed app）
+│   └── s2s-oauth-setup.md     # Server-to-Server OAuth セットアップガイド（WebSocket用）
 ├── specs/            # 仕様書・要件定義
 │   └── require.md    # Zoom Phone API POC 要件定義書
 └── survey/           # 調査ドキュメント
-    ├── zoom-apis.md        # Zoom API調査結果（技術調査）
-    └── zoom-api-design.md  # Zoom API設計判断・アーキテクチャ
+    ├── zoom-apis.md           # Zoom API調査結果（概要・インデックス）
+    ├── call-history.md        # 電話履歴の取得
+    ├── recording-download.md  # 録音ダウンロード
+    ├── realtime-streaming.md  # リアルタイムストリーミング調査
+    ├── call-log-timing.md     # 履歴作成タイミング
+    ├── caller-info-on-ring.md # 着信時発信者情報取得
+    └── zoom-api-design.md     # Zoom API設計判断・アーキテクチャ
 
 .kiro/
 └── specs/            # Kiro仕様ドキュメント
@@ -43,12 +49,19 @@ docs/
 
 ### セットアップ・環境構築（setup/）
 
-- **[zoom-account-setup.md](./setup/zoom-account-setup.md)** - Zoomアカウント環境設定ガイド
+- **[zoom-account-setup.md](./setup/zoom-account-setup.md)** - Zoomアカウント環境設定ガイド（OAuth User-managed app）
   - Zoom Marketplaceでのアプリ作成手順
   - OAuth認証とスコープ設定
   - Webhook設定（オプション）
   - `.env`ファイルの設定方法
   - 動作確認とトラブルシューティング
+
+- **[s2s-oauth-setup.md](./setup/s2s-oauth-setup.md)** - Server-to-Server OAuth セットアップガイド
+  - WebSocket API用のS2S OAuthアプリ作成手順
+  - Event Subscriptions（WebSocket）設定
+  - Subscription ID の取得方法
+  - OAuth（User-managed app）との違い
+  - 検証手順とトラブルシューティング
 
 ### 仕様書・要件定義（specs/）
 
@@ -62,12 +75,18 @@ docs/
 
 ### 調査ドキュメント（survey/）
 
-- **[zoom-apis.md](./survey/zoom-apis.md)** - Zoom Phone API 技術調査結果
-  - 電話履歴の取得方法
-  - 音声データ（録音）の取得方法
-  - リアルタイム音声ストリーミングの調査結果
-  - POC実装検証結果
-  - Webhookイベント一覧
+- **[zoom-apis.md](./survey/zoom-apis.md)** - Zoom Phone API 技術調査結果（概要・インデックス）
+  - 全調査項目のまとめと詳細ドキュメントへのリンク
+
+#### 個別調査結果
+
+| ドキュメント | 調査事項 | 結果 |
+|-------------|---------|------|
+| **[call-history.md](./survey/call-history.md)** | 電話履歴の取得 | ✅ 可能 |
+| **[recording-download.md](./survey/recording-download.md)** | 履歴から音声データの取得 | ✅ 可能 |
+| **[realtime-streaming.md](./survey/realtime-streaming.md)** | リアルタイム音声・文字起こし取得 | ❌ 不可 |
+| **[call-log-timing.md](./survey/call-log-timing.md)** | 履歴が残るタイミング | ✅ 検知可能 |
+| **[caller-info-on-ring.md](./survey/caller-info-on-ring.md)** | 着信時の電話番号取得 | ✅ 可能 |
 
 - **[zoom-api-design.md](./survey/zoom-api-design.md)** - Zoom Phone API 設計判断・アーキテクチャ
   - アーキテクチャパターン評価（Layered Architecture採用理由）
@@ -105,4 +124,4 @@ docs/
 
 ---
 
-最終更新日: 2026-01-26
+最終更新日: 2026-01-28
