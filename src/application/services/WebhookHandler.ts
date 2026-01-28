@@ -1,6 +1,8 @@
 import {
   ZoomWebhookEvent,
   CallHistoryCompletedPayload,
+  CalleeRingingPayload,
+  GenericCallEventPayload,
   WebhookEventTypes,
   IWebhookHandler,
 } from '../types/index';
@@ -21,6 +23,10 @@ export class WebhookHandler implements IWebhookHandler {
   private readonly eventQueue: QueuedEvent[] = [];
   private readonly processedEventIds: Set<string> = new Set();
   private callCompletedCallbacks: Array<(payload: CallHistoryCompletedPayload) => Promise<void>> = [];
+  private calleeRingingCallbacks: Array<(payload: CalleeRingingPayload) => Promise<void>> = [];
+  private calleeAnsweredCallbacks: Array<(payload: GenericCallEventPayload) => Promise<void>> = [];
+  private calleeMissedCallbacks: Array<(payload: GenericCallEventPayload) => Promise<void>> = [];
+  private calleeEndedCallbacks: Array<(payload: GenericCallEventPayload) => Promise<void>> = [];
   private isProcessing = false;
 
   /**
@@ -69,14 +75,59 @@ export class WebhookHandler implements IWebhookHandler {
   }
 
   /**
+   * Register callback for callee ringing events (incoming call notification)
+   */
+  onCalleeRinging(callback: (payload: CalleeRingingPayload) => Promise<void>): void {
+    this.calleeRingingCallbacks.push(callback);
+    logger.debug('Callee ringing callback registered', {
+      totalCallbacks: this.calleeRingingCallbacks.length,
+    });
+  }
+
+  /**
+   * Register callback for callee answered events
+   */
+  onCalleeAnswered(callback: (payload: GenericCallEventPayload) => Promise<void>): void {
+    this.calleeAnsweredCallbacks.push(callback);
+    logger.debug('Callee answered callback registered', {
+      totalCallbacks: this.calleeAnsweredCallbacks.length,
+    });
+  }
+
+  /**
+   * Register callback for callee missed events
+   */
+  onCalleeMissed(callback: (payload: GenericCallEventPayload) => Promise<void>): void {
+    this.calleeMissedCallbacks.push(callback);
+    logger.debug('Callee missed callback registered', {
+      totalCallbacks: this.calleeMissedCallbacks.length,
+    });
+  }
+
+  /**
+   * Register callback for callee ended events
+   */
+  onCalleeEnded(callback: (payload: GenericCallEventPayload) => Promise<void>): void {
+    this.calleeEndedCallbacks.push(callback);
+    logger.debug('Callee ended callback registered', {
+      totalCallbacks: this.calleeEndedCallbacks.length,
+    });
+  }
+
+  /**
    * Get unique event ID for idempotency check
    */
   private getEventId(event: ZoomWebhookEvent): string {
     const payload = event.payload.object;
 
-    // Use call_log_id if available
+    // Use call_log_id if available (for call history events)
     if ('call_log_id' in payload && payload.call_log_id) {
       return `${event.event}:${payload.call_log_id}`;
+    }
+
+    // Use call_id if available (for ringing events)
+    if ('call_id' in payload && payload.call_id) {
+      return `${event.event}:${payload.call_id}`;
     }
 
     // Fallback to event timestamp
@@ -134,6 +185,22 @@ export class WebhookHandler implements IWebhookHandler {
         await this.handleCallHistoryCompleted(event);
         break;
 
+      case WebhookEventTypes.CALLEE_RINGING:
+        await this.handleCalleeRinging(event);
+        break;
+
+      case WebhookEventTypes.CALLEE_ANSWERED:
+        await this.handleCalleeAnswered(event);
+        break;
+
+      case WebhookEventTypes.CALLEE_MISSED:
+        await this.handleCalleeMissed(event);
+        break;
+
+      case WebhookEventTypes.CALLEE_ENDED:
+        await this.handleCalleeEnded(event);
+        break;
+
       default:
         logger.debug('Unhandled event type', { eventType: event.event });
     }
@@ -144,6 +211,11 @@ export class WebhookHandler implements IWebhookHandler {
    */
   private async handleCallHistoryCompleted(event: ZoomWebhookEvent): Promise<void> {
     const payload = event.payload.object as CallHistoryCompletedPayload;
+
+    // Log full payload for debugging (structure verification)
+    logger.debug('Full call history completed payload', {
+      payload: JSON.stringify(event.payload.object),
+    });
 
     logger.info('Call history completed', {
       callLogId: payload.call_log_id,
@@ -160,6 +232,122 @@ export class WebhookHandler implements IWebhookHandler {
       } catch (error) {
         logger.error('Error in call completed callback', error as Error, {
           callLogId: payload.call_log_id,
+        });
+      }
+    }
+  }
+
+  /**
+   * Handle callee ringing event (incoming call notification)
+   */
+  private async handleCalleeRinging(event: ZoomWebhookEvent): Promise<void> {
+    const payload = event.payload.object as CalleeRingingPayload;
+
+    logger.info('Callee ringing event received', {
+      callId: payload.call_id,
+      callerNumber: payload.caller?.phone_number,
+      calleeNumber: payload.callee?.phone_number,
+    });
+
+    // Log full payload for debugging (structure verification)
+    logger.debug('Full callee ringing payload', {
+      payload: JSON.stringify(event.payload.object),
+    });
+
+    // Execute all registered callbacks
+    for (const callback of this.calleeRingingCallbacks) {
+      try {
+        await callback(payload);
+      } catch (error) {
+        logger.error('Error in callee ringing callback', error as Error, {
+          callId: payload.call_id,
+        });
+      }
+    }
+  }
+
+  /**
+   * Handle callee answered event
+   */
+  private async handleCalleeAnswered(event: ZoomWebhookEvent): Promise<void> {
+    const payload = event.payload.object as GenericCallEventPayload;
+
+    logger.info('Callee answered event received', {
+      callId: payload.call_id,
+      callerNumber: payload.caller_number || payload.caller?.phone_number,
+      calleeNumber: payload.callee_number || payload.callee?.phone_number,
+    });
+
+    // Log full payload for debugging (structure verification)
+    logger.debug('Full callee answered payload', {
+      payload: JSON.stringify(event.payload.object),
+    });
+
+    // Execute all registered callbacks
+    for (const callback of this.calleeAnsweredCallbacks) {
+      try {
+        await callback(payload);
+      } catch (error) {
+        logger.error('Error in callee answered callback', error as Error, {
+          callId: payload.call_id,
+        });
+      }
+    }
+  }
+
+  /**
+   * Handle callee missed event
+   */
+  private async handleCalleeMissed(event: ZoomWebhookEvent): Promise<void> {
+    const payload = event.payload.object as GenericCallEventPayload;
+
+    logger.info('Callee missed event received', {
+      callId: payload.call_id,
+      callerNumber: payload.caller_number || payload.caller?.phone_number,
+      calleeNumber: payload.callee_number || payload.callee?.phone_number,
+    });
+
+    // Log full payload for debugging (structure verification)
+    logger.debug('Full callee missed payload', {
+      payload: JSON.stringify(event.payload.object),
+    });
+
+    // Execute all registered callbacks
+    for (const callback of this.calleeMissedCallbacks) {
+      try {
+        await callback(payload);
+      } catch (error) {
+        logger.error('Error in callee missed callback', error as Error, {
+          callId: payload.call_id,
+        });
+      }
+    }
+  }
+
+  /**
+   * Handle callee ended event
+   */
+  private async handleCalleeEnded(event: ZoomWebhookEvent): Promise<void> {
+    const payload = event.payload.object as GenericCallEventPayload;
+
+    logger.info('Callee ended event received', {
+      callId: payload.call_id,
+      callerNumber: payload.caller_number || payload.caller?.phone_number,
+      calleeNumber: payload.callee_number || payload.callee?.phone_number,
+    });
+
+    // Log full payload for debugging (structure verification)
+    logger.debug('Full callee ended payload', {
+      payload: JSON.stringify(event.payload.object),
+    });
+
+    // Execute all registered callbacks
+    for (const callback of this.calleeEndedCallbacks) {
+      try {
+        await callback(payload);
+      } catch (error) {
+        logger.error('Error in callee ended callback', error as Error, {
+          callId: payload.call_id,
         });
       }
     }

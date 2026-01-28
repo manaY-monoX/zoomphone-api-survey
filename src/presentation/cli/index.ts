@@ -1,9 +1,12 @@
 import { OAuthService } from '../../application/services/OAuthService';
+import { S2SOAuthService } from '../../application/services/S2SOAuthService';
 import { CallHistoryService } from '../../application/services/CallHistoryService';
 import { RecordingService } from '../../application/services/RecordingService';
 import { WebhookHandler } from '../../application/services/WebhookHandler';
+import { WebSocketEventHandler } from '../../application/services/WebSocketEventHandler';
 import { WebhookServer } from '../../infrastructure/server/WebhookServer';
 import { OAuthCallbackServer } from '../../infrastructure/server/OAuthCallbackServer';
+import { ZoomWebSocketClient } from '../../infrastructure/websocket/ZoomWebSocketClient';
 import { config } from '../../config/index';
 
 /**
@@ -15,6 +18,7 @@ const COMMANDS = {
   RECORDINGS: 'recordings',
   DOWNLOAD: 'download',
   WEBHOOK: 'webhook',
+  WEBSOCKET: 'websocket',
   HELP: 'help',
 } as const;
 
@@ -31,8 +35,9 @@ Commands:
   auth                  Start OAuth authentication flow
   history               Fetch call history
   recordings            List recordings for authenticated user
-  download <url>        Download a recording
-  webhook               Start webhook server
+  download <url|id>     Download a recording by URL or recording ID
+  webhook               Start webhook server (HTTP POST)
+  websocket             Start WebSocket client for real-time events
   help                  Show this help message
 
 Examples:
@@ -40,7 +45,9 @@ Examples:
   npm run cli -- history
   npm run cli -- recordings
   npm run cli -- download "https://zoom.us/..."
+  npm run cli -- download 9fd3c039f425469c84a8e17f0aa00104
   npm run cli -- webhook
+  npm run cli -- websocket
 `);
 }
 
@@ -239,9 +246,17 @@ async function handleRecordings(_userId?: string): Promise<void> {
 }
 
 /**
- * Handle download command
+ * Check if input is a URL
  */
-async function handleDownload(downloadUrl: string): Promise<void> {
+function isUrl(input: string): boolean {
+  return input.startsWith('http://') || input.startsWith('https://');
+}
+
+/**
+ * Handle download command
+ * Supports both download URL and recording ID
+ */
+async function handleDownload(input: string): Promise<void> {
   console.log('Downloading recording...\n');
 
   const oauthService = new OAuthService();
@@ -256,6 +271,23 @@ async function handleDownload(downloadUrl: string): Promise<void> {
   }
 
   const recordingService = new RecordingService(undefined, undefined, oauthService);
+
+  let downloadUrl = input;
+
+  // If input is not a URL, treat it as a recording ID
+  if (!isUrl(input)) {
+    console.log(`Input "${input}" is not a URL, searching by recording ID...\n`);
+    const recordingResult = await recordingService.findRecordingById(input);
+
+    if (!recordingResult.success) {
+      console.error('Recording not found:', recordingResult.error.message);
+      console.log('\nTip: Use "npm run cli -- recordings" to list available recordings.\n');
+      process.exit(1);
+    }
+
+    downloadUrl = recordingResult.data.downloadUrl;
+    console.log(`Found recording. Download URL: ${downloadUrl}\n`);
+  }
 
   // Generate output filename
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -297,6 +329,52 @@ async function handleWebhook(): Promise<void> {
     console.log(`  From: ${payload.caller_number} → To: ${payload.callee_number}`);
     console.log(`  Duration: ${payload.duration}s`);
     console.log(`  Result: ${payload.result}`);
+    // Log raw payload for structure verification during testing
+    console.log(`  [DEBUG] Raw payload: ${JSON.stringify(payload)}`);
+  });
+
+  // Register callee ringing callback (incoming call notification)
+  webhookHandler.onCalleeRinging(async (payload) => {
+    console.log('\n[Webhook] 着信通知 (ringing):');
+    console.log(`  Call ID: ${payload.call_id}`);
+    console.log(`  発信者番号: ${payload.caller?.phone_number || 'Unknown'}`);
+    console.log(`  発信者名: ${payload.caller?.name || 'N/A'}`);
+    console.log(`  着信者番号: ${payload.callee?.phone_number || 'Unknown'}`);
+    console.log(`  着信者ユーザーID: ${payload.callee?.user_id || 'N/A'}`);
+    console.log(`  内線番号: ${payload.callee?.extension_number || 'N/A'}`);
+    console.log(`  デバイス種別: ${payload.callee?.device_type || 'N/A'}`);
+    // Log raw payload for structure verification during testing
+    console.log(`  [DEBUG] Raw payload: ${JSON.stringify(payload)}`);
+  });
+
+  // Register callee answered callback (call answered)
+  webhookHandler.onCalleeAnswered(async (payload) => {
+    console.log('\n[Webhook] 通話開始 (answered):');
+    console.log(`  Call ID: ${payload.call_id}`);
+    console.log(`  発信者番号: ${payload.caller_number || payload.caller?.phone_number || 'Unknown'}`);
+    console.log(`  着信者番号: ${payload.callee_number || payload.callee?.phone_number || 'Unknown'}`);
+    // Log raw payload for structure verification during testing
+    console.log(`  [DEBUG] Raw payload: ${JSON.stringify(payload)}`);
+  });
+
+  // Register callee missed callback (missed call)
+  webhookHandler.onCalleeMissed(async (payload) => {
+    console.log('\n[Webhook] 不在着信 (missed):');
+    console.log(`  Call ID: ${payload.call_id}`);
+    console.log(`  発信者番号: ${payload.caller_number || payload.caller?.phone_number || 'Unknown'}`);
+    console.log(`  着信者番号: ${payload.callee_number || payload.callee?.phone_number || 'Unknown'}`);
+    // Log raw payload for structure verification during testing
+    console.log(`  [DEBUG] Raw payload: ${JSON.stringify(payload)}`);
+  });
+
+  // Register callee ended callback (call ended)
+  webhookHandler.onCalleeEnded(async (payload) => {
+    console.log('\n[Webhook] 通話終了 (ended):');
+    console.log(`  Call ID: ${payload.call_id}`);
+    console.log(`  発信者番号: ${payload.caller_number || payload.caller?.phone_number || 'Unknown'}`);
+    console.log(`  着信者番号: ${payload.callee_number || payload.callee?.phone_number || 'Unknown'}`);
+    // Log raw payload for structure verification during testing
+    console.log(`  [DEBUG] Raw payload: ${JSON.stringify(payload)}`);
   });
 
   // Start server
@@ -312,6 +390,116 @@ async function handleWebhook(): Promise<void> {
   process.on('SIGINT', async () => {
     console.log('\nShutting down...');
     await webhookServer.stop();
+    process.exit(0);
+  });
+}
+
+/**
+ * Handle websocket command
+ * Connects to Zoom WebSocket API for real-time event delivery
+ * Uses Server-to-Server OAuth (required since Feb 2023 security update)
+ */
+async function handleWebSocket(): Promise<void> {
+  console.log('Starting WebSocket client...\n');
+
+  // Validate required S2S OAuth configuration
+  if (!config.zoom.accountId) {
+    console.error('Error: ZOOM_ACCOUNT_ID is not set in .env');
+    console.error('Server-to-Server OAuth requires Account ID from Zoom Marketplace.');
+    console.error('See: https://developers.zoom.us/docs/internal-apps/s2s-oauth/');
+    process.exit(1);
+  }
+
+  // Create S2S OAuth service and WebSocket client
+  const s2sOAuthService = new S2SOAuthService();
+
+  // Verify S2S OAuth authentication
+  const tokenResult = await s2sOAuthService.getAccessToken();
+  if (!tokenResult.success) {
+    console.error('S2S OAuth authentication failed:', tokenResult.error.message);
+    console.error('Check your ZOOM_CLIENT_ID, ZOOM_CLIENT_SECRET, and ZOOM_ACCOUNT_ID.');
+    process.exit(1);
+  }
+
+  console.log('S2S OAuth token obtained successfully.\n');
+
+  const wsClient = new ZoomWebSocketClient(s2sOAuthService);
+  const wsEventHandler = new WebSocketEventHandler();
+
+  // Register state change handler
+  wsClient.onStateChange((state) => {
+    console.log(`[WebSocket] Connection state: ${state}`);
+  });
+
+  // Register message handler
+  wsClient.onMessage(async (message) => {
+    await wsEventHandler.handleMessage(message);
+  });
+
+  // Register callee ringing callback (incoming call notification)
+  wsEventHandler.onCalleeRinging(async (payload) => {
+    console.log('\n[WebSocket] 着信通知 (ringing):');
+    console.log(`  Call ID: ${payload.call_id}`);
+    console.log(`  発信者番号: ${payload.caller?.phone_number || 'Unknown'}`);
+    console.log(`  発信者名: ${payload.caller?.name || 'N/A'}`);
+    console.log(`  着信者番号: ${payload.callee?.phone_number || 'Unknown'}`);
+    console.log(`  着信者ユーザーID: ${payload.callee?.user_id || 'N/A'}`);
+    console.log(`  内線番号: ${payload.callee?.extension_number || 'N/A'}`);
+    console.log(`  デバイス種別: ${payload.callee?.device_type || 'N/A'}`);
+    console.log(`  [DEBUG] Raw payload: ${JSON.stringify(payload)}`);
+  });
+
+  // Register callee answered callback
+  wsEventHandler.onCalleeAnswered(async (payload) => {
+    console.log('\n[WebSocket] 通話開始 (answered):');
+    console.log(`  Call ID: ${payload.call_id}`);
+    console.log(`  発信者番号: ${payload.caller_number || payload.caller?.phone_number || 'Unknown'}`);
+    console.log(`  着信者番号: ${payload.callee_number || payload.callee?.phone_number || 'Unknown'}`);
+    console.log(`  [DEBUG] Raw payload: ${JSON.stringify(payload)}`);
+  });
+
+  // Register callee missed callback
+  wsEventHandler.onCalleeMissed(async (payload) => {
+    console.log('\n[WebSocket] 不在着信 (missed):');
+    console.log(`  Call ID: ${payload.call_id}`);
+    console.log(`  発信者番号: ${payload.caller_number || payload.caller?.phone_number || 'Unknown'}`);
+    console.log(`  着信者番号: ${payload.callee_number || payload.callee?.phone_number || 'Unknown'}`);
+    console.log(`  [DEBUG] Raw payload: ${JSON.stringify(payload)}`);
+  });
+
+  // Register callee ended callback
+  wsEventHandler.onCalleeEnded(async (payload) => {
+    console.log('\n[WebSocket] 通話終了 (ended):');
+    console.log(`  Call ID: ${payload.call_id}`);
+    console.log(`  発信者番号: ${payload.caller_number || payload.caller?.phone_number || 'Unknown'}`);
+    console.log(`  着信者番号: ${payload.callee_number || payload.callee?.phone_number || 'Unknown'}`);
+    console.log(`  [DEBUG] Raw payload: ${JSON.stringify(payload)}`);
+  });
+
+  // Validate subscription ID
+  if (!config.websocket.subscriptionId) {
+    console.error('Error: ZOOM_WEBSOCKET_SUBSCRIPTION_ID is not set in .env');
+    console.error('Get your subscription ID from Zoom Marketplace app settings.');
+    process.exit(1);
+  }
+
+  // Connect to WebSocket
+  try {
+    await wsClient.connect();
+    console.log(`\nWebSocket client is connecting to ${config.websocket.url}`);
+    console.log(`Subscription ID: ${config.websocket.subscriptionId}`);
+    console.log(`Heartbeat interval: ${config.websocket.heartbeatIntervalMs / 1000}s`);
+    console.log('\nWaiting for real-time phone events...');
+    console.log('Press Ctrl+C to stop.\n');
+  } catch (error) {
+    console.error('Failed to connect to WebSocket:', (error as Error).message);
+    process.exit(1);
+  }
+
+  // Handle shutdown
+  process.on('SIGINT', () => {
+    console.log('\nShutting down WebSocket client...');
+    wsClient.disconnect();
     process.exit(0);
   });
 }
@@ -353,17 +541,21 @@ async function main(): Promise<void> {
       break;
 
     case COMMANDS.DOWNLOAD:
-      const downloadUrl = args[1];
-      if (!downloadUrl) {
-        console.error('Error: Download URL is required.');
-        console.log('Usage: npm run cli -- download <url>');
+      const downloadInput = args[1];
+      if (!downloadInput) {
+        console.error('Error: Download URL or recording ID is required.');
+        console.log('Usage: npm run cli -- download <url|id>');
         process.exit(1);
       }
-      await handleDownload(downloadUrl);
+      await handleDownload(downloadInput);
       break;
 
     case COMMANDS.WEBHOOK:
       await handleWebhook();
+      break;
+
+    case COMMANDS.WEBSOCKET:
+      await handleWebSocket();
       break;
 
     default:
