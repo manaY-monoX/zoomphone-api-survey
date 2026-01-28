@@ -15,8 +15,7 @@ docs/
 ├── dev/              # 開発関連ドキュメント
 │   └── branch.md     # ブランチ戦略とCI/CDワークフロー
 ├── setup/            # セットアップ・環境構築ガイド
-│   ├── zoom-account-setup.md  # Zoomアカウント環境設定ガイド（OAuth User-managed app）
-│   └── s2s-oauth-setup.md     # Server-to-Server OAuth セットアップガイド（WebSocket用）
+│   └── zoom-account-setup.md  # Zoomアカウント環境設定ガイド（OAuth User-managed app）
 ├── specs/            # 仕様書・要件定義
 │   └── require.md    # Zoom Phone API POC 要件定義書
 └── survey/           # 調査ドキュメント
@@ -55,13 +54,6 @@ docs/
   - Webhook設定（オプション）
   - `.env`ファイルの設定方法
   - 動作確認とトラブルシューティング
-
-- **[s2s-oauth-setup.md](./setup/s2s-oauth-setup.md)** - Server-to-Server OAuth セットアップガイド
-  - WebSocket API用のS2S OAuthアプリ作成手順
-  - Event Subscriptions（WebSocket）設定
-  - Subscription ID の取得方法
-  - OAuth（User-managed app）との違い
-  - 検証手順とトラブルシューティング
 
 ### 仕様書・要件定義（specs/）
 

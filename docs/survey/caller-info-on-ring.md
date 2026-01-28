@@ -2,46 +2,18 @@
 
 ## 結論
 
-✅ **可能** - `phone.callee_ringing` イベントで着信時に発信者の電話番号を取得できる。Webhook方式とWebSocket方式の両方で実現可能。
+✅ **可能** - `phone.callee_ringing` Webhookイベントで着信時に発信者の電話番号を取得できる。
 
 ## 実現方法
 
-着信時（呼び出し中）に発火する `phone.callee_ringing` イベントを受信し、`caller` オブジェクトから発信者情報を取得する。
-
-### 推奨方式の選択
-
-| ユースケース | 推奨方式 |
-|------------|---------|
-| クラウド環境（AWS/GCP/Azure）で公開URL提供可能 | **Webhook** |
-| ローカル/社内環境で公開URL提供困難 | **WebSocket** |
-| 既存のOAuthアプリを流用したい | **Webhook** |
-| 新規にS2S OAuthアプリを作成可能 | **WebSocket** |
-
-### 方式比較
-
-| 項目 | Webhook (HTTP POST) | WebSocket |
-|-----|---------------------|-----------|
-| **配信方式** | Zoom → あなたのサーバー | あなた → Zoom (常時接続) |
-| **公開URL** | **必須** (ngrok/ALB等) | **不要** |
-| **認証** | OAuth (User-managed) | S2S OAuth **必須** |
-| **セットアップ複雑さ** | 低 | 中（S2S OAuthアプリ作成） |
-| **遅延** | 数百ms〜1秒程度 | 即時（常時接続） |
-| **スケーラビリティ** | 高（Stateless） | 中（接続維持必要） |
+着信時（呼び出し中）に発火する `phone.callee_ringing` イベントをWebhookで受信し、`caller` オブジェクトから発信者情報を取得する。
 
 ## 必要な条件
-
-### Webhook方式
 
 - **OAuthアプリ**: OAuth App または Webhook Only App
 - **OAuthスコープ**: `phone:read:admin`, `phone:write:admin`, `phone:read`, `phone:write`, `phone:master` のいずれか
 - **イベント購読**: 「Callee phone is ringing」イベントを有効化
-- **Webhook URL**: 公開エンドポイントが必要
-
-### WebSocket方式
-
-- **OAuthアプリ**: Server-to-Server OAuth App（S2S OAuth）
-- **WebSocket購読**: Features > WebSocket subscription を有効化
-- **イベント購読**: `phone.callee_ringing` を選択
+- **Webhook URL**: 公開エンドポイントが必要（ngrok等で開発環境にも対応可能）
 
 ## 実装例
 
@@ -49,19 +21,19 @@
 
 | ファイル | 説明 |
 |---------|------|
-| `src/application/services/WebhookHandler.ts:243-266` | Webhook版着信処理 |
-| `src/application/services/WebSocketEventHandler.ts:219-243` | WebSocket版着信処理 |
+| `src/application/services/WebhookHandler.ts:243-266` | 着信イベント処理 |
 | `src/application/types/webhook.ts` | `CalleeRingingPayload` 型定義 |
-| `src/presentation/cli/index.ts:335-346` | CLI着信表示 |
 
 ### CLIコマンド
 
 ```bash
-# Webhook方式
+# Webhookサーバーを起動
 npm run cli -- webhook
 
-# WebSocket方式
-npm run cli -- websocket
+# ngrokでトンネル作成
+ngrok http 3001
+
+# Zoom Marketplaceで https://xxxx.ngrok.io/webhook を設定
 ```
 
 ### 取得できる発信者情報
@@ -107,28 +79,6 @@ npm run cli -- websocket
 }
 ```
 
-## 注意点・制限事項
-
-### Webhookイベント配信の問題
-
-一部の環境で `phone.callee_ringing` がWebhook経由で配信されない問題が報告されている。
-
-- [ZoomPhone webhook call events not received - Developer Forum](https://devforum.zoom.us/t/zoomphone-webhook-call-events-not-received/127224) (2025年3月)
-- `phone.caller_ringing`, `phone.caller_connected`, `phone.caller_ended` が受信されない
-- Zoom内部チケット作成済み（ZSEE-160985）だが未解決
-
-**除外された原因**:
-- Zoom Marketplaceでの購読設定漏れ → スクリーンショット確認済み
-- 開発環境（ngrok）の問題 → `phone.callee_call_history_completed` は正常受信
-
-**推奨対策**: Webhookで問題が発生する場合はWebSocket方式への切り替えを検討。
-
-### WebSocket方式の注意点
-
-- S2S OAuthアプリの作成が必要（User-managed OAuthとは別）
-- 常時接続を維持する必要がある（Heartbeat 30秒ごと）
-- 接続切断時の自動再接続処理が必要
-
 ### CTI連携の実装例
 
 着信ポップアップ（CTI）機能を実装する場合:
@@ -150,9 +100,27 @@ webhookHandler.onCalleeRinging(async (payload) => {
 });
 ```
 
+## 注意点・制限事項
+
+### Webhookイベント配信の問題
+
+一部の環境で `phone.callee_ringing` がWebhook経由で配信されない問題が報告されている。
+
+- [ZoomPhone webhook call events not received - Developer Forum](https://devforum.zoom.us/t/zoomphone-webhook-call-events-not-received/127224) (2025年3月)
+- `phone.caller_ringing`, `phone.caller_connected`, `phone.caller_ended` が受信されない
+- Zoom内部チケット作成済み（ZSEE-160985）だが未解決
+
+**除外された原因**:
+- Zoom Marketplaceでの購読設定漏れ → スクリーンショット確認済み
+- 開発環境（ngrok）の問題 → `phone.callee_call_history_completed` は正常受信
+
+### 代替手段（参考）
+
+Webhookで問題が発生する場合、ZoomはWebSocket APIも提供している。WebSocket方式ではS2S OAuthアプリの作成が必要だが、公開URLなしでリアルタイムイベントを受信できる。
+
+詳細は [Zoom WebSocket API Documentation](https://developers.zoom.us/docs/api/websockets/) を参照。
+
 ## 参考資料
 
 - [Zoom Phone Webhook Events - callee_ringing](https://developers.zoom.us/docs/api/rest/reference/phone/events/#tag/Callee-Events/paths/phone.callee_ringing/post)
 - [Zoom WebSocket API Documentation](https://developers.zoom.us/docs/api/websockets/)
-- [WebSocket JS Sample (GitHub)](https://github.com/zoom/websocket-js-sample)
-- [S2S OAuthセットアップガイド](../setup/s2s-oauth-setup.md)

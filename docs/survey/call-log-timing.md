@@ -130,7 +130,6 @@ async function getCallLogWithRetry(callLogId: string, maxRetries = 5): Promise<C
 
 - Zoom Developer Forumで複数報告あり
 - Zoom内部チケット（ZSEE-160985）作成済みだが未解決
-- 代替手段としてWebSocket APIの使用を推奨
 
 詳細は [caller-info-on-ring.md](./caller-info-on-ring.md) を参照。
 
