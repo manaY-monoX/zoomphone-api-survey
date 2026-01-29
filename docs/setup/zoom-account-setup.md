@@ -40,10 +40,11 @@ Zoom Phone API POCを実際のZoomアカウントで動作させるための`.en
 
 | スコープ | 説明 |
 |---------|------|
-| `phone:read:list_call_logs` | Zoom Phone ユーザーのコールログ一覧を確認 |
-| `phone:read:call_log` | 個別のコールログを確認 |
-| `phone:read:list_recordings` | Zoom Phone ユーザーのレコーディング一覧を確認 |
-| `phone:read:call_recording` | 個別のコールレコーディングを確認 |
+| `phone:read:list_call_logs` | Zoom Phone ユーザーのコールログを確認する |
+| `phone:read:call_log` | コールログを確認する |
+| `phone:read:list_recordings` | Zoom Phone ユーザーのレコーディングを確認する |
+| `phone:read:call_recording` | コール レコーディングを確認する |
+| `phone:read:call` | 通話を確認する |
 
 **追加手順:**
 1. 「+ Add Scopes」をクリック
@@ -169,9 +170,21 @@ npm run cli -- webhook
 
 ## 関連ドキュメント
 
+- [Server-to-Server OAuth セットアップガイド](./s2s-oauth-setup.md) - WebSocket API用のS2S OAuthアプリ作成手順
 - [要件定義書](../specs/require.md)
 - [Zoom API調査結果](../survey/zoom-apis.md)
 - [技術設計書](../../.kiro/specs/zoom-phone-api-poc/design.md)
+
+---
+
+## OAuth と S2S OAuth の使い分け
+
+| 機能 | 使用するOAuthタイプ | セットアップガイド |
+|-----|-------------------|------------------|
+| 通話履歴取得 | OAuth (User-managed) | このドキュメント |
+| 録音取得・ダウンロード | OAuth (User-managed) | このドキュメント |
+| WebSocket リアルタイムイベント | Server-to-Server OAuth | [S2S OAuthガイド](./s2s-oauth-setup.md) |
+| Webhook HTTP POST | OAuth (User-managed) | このドキュメント |
 
 ---
 

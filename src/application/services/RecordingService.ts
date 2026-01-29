@@ -110,6 +110,33 @@ export class RecordingService implements IRecordingService {
   }
 
   /**
+   * Find recording by ID and return its details
+   */
+  async findRecordingById(recordingId: string): Promise<Result<Recording, ApiError>> {
+    logger.info('Finding recording by ID', { recordingId });
+
+    const result = await this.getRecordings();
+
+    if (!result.success) {
+      return result;
+    }
+
+    const recording = result.data.recordings.find(r => r.id === recordingId);
+
+    if (!recording) {
+      return err({
+        type: 'NOT_FOUND',
+        message: `Recording not found: ${recordingId}`,
+        resourceType: 'Recording',
+        resourceId: recordingId,
+      });
+    }
+
+    logger.info('Recording found', { recordingId, downloadUrl: recording.downloadUrl });
+    return ok(recording);
+  }
+
+  /**
    * Extract download_url_key from download URL
    */
   extractDownloadKey(downloadUrl: string): string {

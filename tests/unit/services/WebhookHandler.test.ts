@@ -1,5 +1,5 @@
 import { WebhookHandler } from '../../../src/application/services/WebhookHandler';
-import { ZoomWebhookEvent, CallHistoryCompletedPayload } from '../../../src/application/types';
+import { ZoomWebhookEvent, CallHistoryCompletedPayload, CalleeRingingPayload } from '../../../src/application/types';
 
 // Mock config
 jest.mock('../../../src/config/index', () => ({
@@ -217,6 +217,136 @@ describe('WebhookHandler', () => {
       await new Promise(resolve => setTimeout(resolve, 100));
 
       expect(webhookHandler.getProcessedEventCount()).toBe(1);
+    });
+  });
+
+  describe('callee ringing events', () => {
+    const createCalleeRingingEvent = (callId: string): ZoomWebhookEvent => ({
+      event: 'phone.callee_ringing',
+      event_ts: Date.now(),
+      payload: {
+        account_id: 'account-123',
+        object: {
+          call_id: callId,
+          caller: {
+            phone_number: '+81901234567',
+            name: 'Test Caller',
+          },
+          callee: {
+            phone_number: '+81312345678',
+            user_id: 'user-123',
+            extension_number: '1001',
+            device_type: 'desktop',
+          },
+        } as CalleeRingingPayload,
+      },
+    });
+
+    it('should process callee ringing event', async () => {
+      const callbackMock = jest.fn().mockResolvedValue(undefined);
+      webhookHandler.onCalleeRinging(callbackMock);
+
+      const event = createCalleeRingingEvent('call-ringing-1');
+      await webhookHandler.handleEvent(event);
+
+      // Wait for async processing
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      expect(callbackMock).toHaveBeenCalledTimes(1);
+      expect(callbackMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          call_id: 'call-ringing-1',
+          caller: expect.objectContaining({
+            phone_number: '+81901234567',
+          }),
+        })
+      );
+    });
+
+    it('should deduplicate callee ringing events by call_id', async () => {
+      const callbackMock = jest.fn().mockResolvedValue(undefined);
+      webhookHandler.onCalleeRinging(callbackMock);
+
+      const event = createCalleeRingingEvent('call-ringing-1');
+
+      // Send same event twice
+      await webhookHandler.handleEvent(event);
+      await webhookHandler.handleEvent(event);
+
+      // Wait for async processing
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Should only be called once
+      expect(callbackMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('should support multiple callee ringing callbacks', async () => {
+      const callback1 = jest.fn().mockResolvedValue(undefined);
+      const callback2 = jest.fn().mockResolvedValue(undefined);
+
+      webhookHandler.onCalleeRinging(callback1);
+      webhookHandler.onCalleeRinging(callback2);
+
+      const event = createCalleeRingingEvent('call-ringing-1');
+      await webhookHandler.handleEvent(event);
+
+      // Wait for async processing
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      expect(callback1).toHaveBeenCalledTimes(1);
+      expect(callback2).toHaveBeenCalledTimes(1);
+    });
+
+    it('should continue processing if a callee ringing callback throws', async () => {
+      const callback1 = jest.fn().mockRejectedValue(new Error('Callback error'));
+      const callback2 = jest.fn().mockResolvedValue(undefined);
+
+      webhookHandler.onCalleeRinging(callback1);
+      webhookHandler.onCalleeRinging(callback2);
+
+      const event = createCalleeRingingEvent('call-ringing-1');
+      await webhookHandler.handleEvent(event);
+
+      // Wait for async processing
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      expect(callback1).toHaveBeenCalledTimes(1);
+      expect(callback2).toHaveBeenCalledTimes(1);
+    });
+
+    it('should handle callee ringing event with minimal payload', async () => {
+      const callbackMock = jest.fn().mockResolvedValue(undefined);
+      webhookHandler.onCalleeRinging(callbackMock);
+
+      // Minimal payload (only required fields)
+      const event: ZoomWebhookEvent = {
+        event: 'phone.callee_ringing',
+        event_ts: Date.now(),
+        payload: {
+          account_id: 'account-123',
+          object: {
+            call_id: 'call-minimal',
+            caller: {
+              phone_number: '+81901234567',
+            },
+            callee: {
+              phone_number: '+81312345678',
+            },
+          } as CalleeRingingPayload,
+        },
+      };
+
+      await webhookHandler.handleEvent(event);
+
+      // Wait for async processing
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      expect(callbackMock).toHaveBeenCalledTimes(1);
+      expect(callbackMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          call_id: 'call-minimal',
+        })
+      );
     });
   });
 });

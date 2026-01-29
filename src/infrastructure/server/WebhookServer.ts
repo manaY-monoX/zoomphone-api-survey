@@ -55,8 +55,9 @@ export class WebhookServer implements IWebhookServer {
       res.json({ status: 'ok' });
     });
 
-    // Webhook endpoint
-    this.app.post('/webhook', async (req: Request, res: Response) => {
+    // Webhook endpoint - both / and /webhook paths
+    // Zoom Marketplace may send to either path depending on configuration
+    const webhookHandler = async (req: Request, res: Response): Promise<void> => {
       try {
         // Verify signature
         const isValid = this.verifySignature(req);
@@ -100,7 +101,11 @@ export class WebhookServer implements IWebhookServer {
         logger.error('Error handling webhook request', error as Error);
         res.status(500).json({ error: 'Internal server error' });
       }
-    });
+    };
+
+    // Register handler for both paths
+    this.app.post('/', webhookHandler);
+    this.app.post('/webhook', webhookHandler);
   }
 
   /**
@@ -165,7 +170,7 @@ export class WebhookServer implements IWebhookServer {
         this.server = this.app.listen(config.webhook.port, () => {
           logger.info('Webhook server started', {
             port: config.webhook.port,
-            endpoints: ['/health', '/webhook'],
+            endpoints: ['/health', '/', '/webhook'],
           });
           resolve();
         });
